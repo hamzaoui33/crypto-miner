@@ -1,1 +1,120 @@
-import { Rocket, Zap, Battery, Flame } from "lucide-react"; const boosts = [ { id: 1, name: "Tap Power", description: "+1 coin per tap", level: 1, cost: 500, icon: Zap, color: "from-amber-500 to-orange-500" }, { id: 2, name: "Energy Limit", description: "+500 max energy", level: 1, cost: 1000, icon: Battery, color: "from-blue-500 to-cyan-500" }, { id: 3, name: "Recharge Speed", description: "2x energy recovery", level: 0, cost: 2000, icon: Flame, color: "from-rose-500 to-pink-500" }, ]; const dailyBoosts = [ { id: 1, name: "Full Energy", description: "Restore energy to max", remaining: 3, icon: Battery }, { id: 2, name: "Turbo Tap", description: "5x tap power for 1 min", remaining: 1, icon: Rocket }, ]; const BoostsTab = () => { return ( <div className="flex flex-col flex-1 gap-6 px-4 py-6 overflow-y-auto"> <div> <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"> <Rocket className="w-4 h-4 text-amber-400" /> Daily Boosts </h2> <div className="flex flex-col gap-2"> {dailyBoosts.map((boost) => { const Icon = boost.icon; return ( <button key={boost.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-800/60 border border-white/5 hover:border-amber-500/20 transition-all active:scale-[0.98]" > <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center"> <Icon className="w-5 h-5 text-amber-400" /> </div> <div className="flex-1 text-left"> <span className="text-sm font-medium text-white">{boost.name}</span> <p className="text-xs text-gray-500">{boost.description}</p> </div> <span className="text-xs font-medium text-amber-400 bg-amber-500/10 px-2 py-1 rounded-lg"> {boost.remaining}x </span> </button> ); })} </div> </div> <div> <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3"> Upgrades </h2> <div className="flex flex-col gap-2"> {boosts.map((boost) => { const Icon = boost.icon; return ( <button key={boost.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-800/60 border border-white/5 hover:border-white/10 transition-all active:scale-[0.98]" > <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${boost.color} flex items-center justify-center opacity-80`}> <Icon className="w-5 h-5 text-white" /> </div> <div className="flex-1 text-left"> <span className="text-sm font-medium text-white">{boost.name}</span> <p className="text-xs text-gray-500">{boost.description}</p> </div> <div className="flex flex-col items-end gap-0.5"> <span className="text-xs font-bold text-white">🪙 {boost.cost.toLocaleString()}</span> <span className="text-[10px] text-gray-500">Lv.{boost.level}</span> </div> </button> ); })} </div> </div> </div> ); }; export default BoostsTab;
+import { MousePointerClick, Battery, Bot, Zap, Rocket, BatteryCharging, ChevronUp } from "lucide-react";
+import { useGameState } from "@/hooks/useGameState";
+
+const iconMap: Record<string, React.ElementType> = {
+  MousePointerClick,
+  Battery,
+  Bot,
+  Zap,
+  Rocket,
+  BatteryCharging,
+};
+
+const BoostsTab = () => {
+  const { coins, upgrades, purchaseUpgrade, dailyBoosts, useDailyBoost } = useGameState();
+
+  return (
+    <div className="flex flex-col flex-1 gap-6 px-4 py-6 overflow-y-auto">
+      {/* Coin Balance Header */}
+      <div className="flex items-center justify-center gap-2 py-2">
+        <span className="text-3xl font-bold text-white tabular-nums tracking-tight">
+          {coins.toLocaleString()}
+        </span>
+        <span className="text-xl">🪙</span>
+      </div>
+
+      {/* Daily Boosts */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Rocket className="w-4 h-4 text-amber-400" />
+          Daily Boosts
+        </h2>
+        <div className="flex flex-col gap-2">
+          {dailyBoosts.map((boost) => {
+            const Icon = iconMap[boost.icon] || Zap;
+            const isAvailable = boost.remaining > 0;
+            return (
+              <button
+                key={boost.id}
+                onClick={() => useDailyBoost(boost.id)}
+                disabled={!isAvailable}
+                className={`flex items-center gap-3 p-4 rounded-xl bg-white/5 backdrop-blur-md border border-white/10 transition-all active:scale-[0.98] ${
+                  isAvailable
+                    ? "hover:border-amber-500/30 cursor-pointer"
+                    : "opacity-40 cursor-not-allowed"
+                }`}
+              >
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-amber-400" />
+                </div>
+                <div className="flex-1 text-left">
+                  <span className="text-sm font-medium text-white">{boost.name}</span>
+                  <p className="text-xs text-gray-500">{boost.description}</p>
+                </div>
+                <span
+                  className={`text-xs font-medium px-2 py-1 rounded-lg ${
+                    isAvailable
+                      ? "text-amber-400 bg-amber-500/10"
+                      : "text-gray-600 bg-gray-800/50"
+                  }`}
+                >
+                  {boost.remaining}x
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Upgrades */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <ChevronUp className="w-4 h-4 text-emerald-400" />
+          Upgrades
+        </h2>
+        <div className="flex flex-col gap-3">
+          {upgrades.map((upgrade) => {
+            const Icon = iconMap[upgrade.icon] || Zap;
+            const canAfford = coins >= upgrade.cost;
+
+            return (
+              <div
+                key={upgrade.id}
+                className="flex items-center gap-4 p-4 rounded-xl bg-white/5 backdrop-blur-md border border-white/10 transition-all"
+              >
+                <div
+                  className={`w-11 h-11 rounded-xl bg-gradient-to-br ${upgrade.color} flex items-center justify-center opacity-90 shrink-0`}
+                >
+                  <Icon className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-white">{upgrade.name}</span>
+                    <span className="text-[10px] font-medium text-gray-500 bg-white/5 px-1.5 py-0.5 rounded-md">
+                      Lvl {upgrade.level}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">{upgrade.description}</p>
+                </div>
+                <button
+                  onClick={() => purchaseUpgrade(upgrade.id)}
+                  disabled={!canAfford}
+                  className={`shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                    canAfford
+                      ? "bg-amber-500 hover:bg-amber-400 text-black active:scale-95 shadow-[0_0_16px_rgba(251,191,36,0.25)]"
+                      : "bg-gray-800 text-gray-600 cursor-not-allowed border border-white/5"
+                  }`}
+                >
+                  <span>🪙</span>
+                  <span>{upgrade.cost.toLocaleString()}</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default BoostsTab;

@@ -15,7 +15,6 @@ const tabComponents: Record<TabId, React.FC> = {
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<TabId>("tap");
-
   const ActiveTabComponent = tabComponents[activeTab];
 
   return (
