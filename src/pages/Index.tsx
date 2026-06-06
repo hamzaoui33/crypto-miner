@@ -18,7 +18,7 @@ const Index = () => {
   const ActiveTabComponent = tabComponents[activeTab];
 
   return (
-    <div className="h-screen w-full bg-gradient-to-b from-gray-900 to-black text-white flex flex-col overflow-hidden">
+    <div className="h-[100dvh] w-full max-w-screen overflow-x-hidden bg-gradient-to-b from-gray-900 to-black text-white flex flex-col select-none">
       <TelegramHeader />
       <div className="flex flex-col flex-1 overflow-hidden">
         <ActiveTabComponent />
