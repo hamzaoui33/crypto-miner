@@ -1,1 +1,29 @@
-export const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'light') => { try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) { window.Telegram.WebApp.HapticFeedback.impactOccurred(type); } } catch (e) { // Silently fail on non-Telegram environments } };
+interface TelegramHapticFeedback {
+  impactOccurred: (type: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
+  notificationOccurred: (type: 'error' | 'success' | 'warning') => void;
+  selectionChanged: () => void;
+}
+
+interface TelegramWebApp {
+  HapticFeedback?: TelegramHapticFeedback;
+  ready: () => void;
+  expand: () => void;
+  close: () => void;
+}
+
+interface TelegramWindow {
+  Telegram?: { WebApp?: TelegramWebApp };
+}
+
+export const triggerHaptic = (
+  type: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'light'
+) => {
+  try {
+    const tw = window as unknown as TelegramWindow;
+    if (tw.Telegram?.WebApp?.HapticFeedback) {
+      tw.Telegram.WebApp.HapticFeedback.impactOccurred(type);
+    }
+  } catch {
+    // Silently fail on non-Telegram environments
+  }
+};
