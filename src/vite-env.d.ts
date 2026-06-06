@@ -1,1 +1,1 @@
-/// <reference types="vite/client" />
+/// <reference types="vite/client" /> interface Window { Telegram?: { WebApp?: { HapticFeedback?: { impactOccurred: (type: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void; notificationOccurred: (type: 'error' | 'success' | 'warning') => void; selectionChanged: () => void; }; ready: () => void; expand: () => void; close: () => void; }; }; }

@@ -1,0 +1,1 @@
+export const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'light') => { try { if (window.Telegram?.WebApp?.HapticFeedback) { window.Telegram.WebApp.HapticFeedback.impactOccurred(type); } } catch { // Silently fail on non-Telegram environments } };
