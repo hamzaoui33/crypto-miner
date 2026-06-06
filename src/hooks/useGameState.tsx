@@ -160,7 +160,7 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const response = await fetch(
-        "https://bqmadlgevzscpwafuswg.supabase.co/functions/v1/submit-taps",
+        API_ENDPOINTS.SUBMIT_TAPS,
         {
           method: "POST",
           headers: {
