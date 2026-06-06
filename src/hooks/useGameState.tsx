@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, ty
 import { getTelegramUser, isInsideTelegram } from "@/utils/telegram";
 import { syncUserData, saveUserState, type UserData } from "@/lib/sync";
 import { useTapBatching, type TapBatch } from "@/lib/tapBatching";
-import { supabase } from "@/integrations/supabase/client";
+import { API_ENDPOINTS } from "@/lib/config";
 
 interface TelegramUser {
   id: number;

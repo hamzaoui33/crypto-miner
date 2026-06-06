@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from "@/integrations/supabase/client";
+import { API_ENDPOINTS, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "@/lib/config";
 
 /**
  * Authenticates a Telegram user by validating their initData
@@ -10,7 +11,7 @@ export async function authenticateWithTelegram(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const response = await fetch(
-      "https://bqmadlgevzscpwafuswg.supabase.co/functions/v1/auth-telegram",
+      API_ENDPOINTS.AUTH_TELEGRAM,
       {
         method: "POST",
         headers: {
@@ -68,8 +69,8 @@ export function clearAuthToken(): void {
  */
 export function createAuthenticatedClient(token: string) {
   return createClient(
-    "https://bqmadlgevzscpwafuswg.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxbWFkbGdldnpzY3B3YWZ1c3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MTM3MzcsImV4cCI6MjA5NjE4OTczN30.7evRnAIWYqlI0rLe1AHYiW_oYv9qLErrZsYrndS4NA0",
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
     {
       global: {
         headers: {
