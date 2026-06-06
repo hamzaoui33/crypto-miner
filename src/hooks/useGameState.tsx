@@ -1,4 +1,15 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { getTelegramUser, isInsideTelegram } from "@/utils/telegram";
+
+interface TelegramUser {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  language_code?: string;
+  is_premium?: boolean;
+  photo_url?: string;
+}
 
 interface Upgrade {
   id: string;
@@ -25,6 +36,7 @@ interface GameState {
   useDailyBoost: (id: string) => void;
   dailyBoosts: DailyBoost[];
   floatingTexts: FloatingText[];
+  telegramUser: TelegramUser | null;
 }
 
 interface FloatingText {
@@ -65,6 +77,7 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   const [upgrades, setUpgrades] = useState<Upgrade[]>(defaultUpgrades);
   const [dailyBoosts, setDailyBoosts] = useState<DailyBoost[]>(defaultDailyBoosts);
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
+  const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
   const nextFloatId = useRef(0);
 
   // Energy regeneration
@@ -84,6 +97,16 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
     }, 1000);
     return () => clearInterval(interval);
   }, [autoBotLevel]);
+
+  // Load Telegram user data on mount
+  useEffect(() => {
+    if (isInsideTelegram()) {
+      const user = getTelegramUser();
+      if (user) {
+        setTelegramUser(user);
+      }
+    }
+  }, []);
 
   // Clean up floating texts
   useEffect(() => {
@@ -156,20 +179,21 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   return (
     <GameStateContext.Provider
       value={{
-        coins,
-        taps,
-        energy,
-        maxEnergy,
-        tapPower,
-        energyRegenRate,
-        upgrades,
-        addCoins,
-        tap,
-        purchaseUpgrade,
-        useDailyBoost,
-        dailyBoosts,
-        floatingTexts,
-      }}
+      coins,
+      taps,
+      energy,
+      maxEnergy,
+      tapPower,
+      energyRegenRate,
+      upgrades,
+      addCoins,
+      tap,
+      purchaseUpgrade,
+      useDailyBoost,
+      dailyBoosts,
+      floatingTexts,
+      telegramUser,
+    }}
     >
       {children}
     </GameStateContext.Provider>
