@@ -3,6 +3,7 @@ import { getTelegramUser, isInsideTelegram } from "@/utils/telegram";
 import { syncUserData, saveUserState, type UserData } from "@/lib/sync";
 import { useTapBatching, type TapBatch } from "@/lib/tapBatching";
 import { API_ENDPOINTS } from "@/lib/config";
+import { authenticateWithTelegram, getStoredAuthToken } from "@/lib/auth";
 
 interface TelegramUser {
   id: number;
@@ -94,6 +95,9 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   // Track if initialization has completed to prevent re-initialization
   const hasInitialized = useRef(false);
 
+  // Store the auth token for use in API calls
+  const authTokenRef = useRef<string | null>(null);
+
   // Initialize Telegram user and sync with backend
   useEffect(() => {
     // Prevent multiple initializations
@@ -103,19 +107,21 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
     }
     hasInitialized.current = true;
 
-    console.log("[init] Starting initialization...");
+    console.log("[init] ==============================================");
+    console.log("[init] Starting initialization sequence...");
+    console.log("[init] ==============================================");
 
     async function initialize() {
       try {
         const isTg = isInsideTelegram();
-        console.log("[init] isInsideTelegram() result:", isTg);
+        console.log("[init-1] isInsideTelegram() result:", isTg);
 
         if (isTg) {
           const user = getTelegramUser();
-          console.log("[init] getTelegramUser() result:", user);
+          console.log("[init-2] getTelegramUser() result:", user);
 
           if (user) {
-            console.log("[init] Telegram user detected:", {
+            console.log("[init-3] Telegram user detected:", {
               id: user.id,
               first_name: user.first_name,
               username: user.username,
@@ -124,62 +130,109 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
             setTelegramUser(user);
             setTeleUserId(user.id);
 
-            // Sync user data with Supabase
-            console.log("[init] === STARTING SUPABASE SYNC ===");
+            // STEP 1: Authenticate with Telegram to get JWT token
+            console.log("[init-4] === STARTING TELEGRAM AUTHENTICATION ===");
+            
+            // Get initData from Telegram WebApp
+            const tw = window as unknown as {
+              Telegram?: { 
+                WebApp?: { 
+                  initData?: string;
+                  initDataUnsafe?: { user?: TelegramUser };
+                } 
+              };
+            };
+            
+            const initData = tw.Telegram?.WebApp?.initData;
+            console.log("[init-4a] Raw initData from Telegram:", initData ? "Present (" + initData.length + " chars)" : "Missing");
+
+            if (!initData) {
+              console.error("[init-4b] ❌ CRITICAL: No initData available from Telegram WebApp!");
+              console.error("[init-4b] Cannot authenticate without initData. Falling back to local mode.");
+              setIsSynced(true);
+              setIsLoading(false);
+              return;
+            }
+
+            // Call authenticateWithTelegram and WAIT for response
+            console.log("[init-4c] Calling authenticateWithTelegram()...");
+            const authResult = await authenticateWithTelegram(initData);
+            
+            console.log("[init-4d] Authentication result:", authResult);
+
+            if (!authResult.success) {
+              console.error("[init-4e] ❌ Authentication FAILED:", authResult.error);
+              console.error("[init-4e] Cannot proceed with sync without valid JWT token.");
+              console.error("[init-4e] Falling back to local mode (data will not persist).");
+              setIsSynced(true);
+              setIsLoading(false);
+              return;
+            }
+
+            console.log("[init-4f] ✅ Authentication SUCCESS!");
+            console.log("[init-4g] User ID from auth:", authResult.userId);
+            console.log("[init-4h] Username from auth:", authResult.username);
+
+            // Store the auth token for later use
+            authTokenRef.current = getStoredAuthToken();
+            console.log("[init-4i] Auth token retrieved and stored in ref:", authTokenRef.current ? "Token exists" : "No token");
+
+            // STEP 2: Now sync user data with Supabase (authenticated)
+            console.log("[init-5] === STARTING SUPABASE SYNC (AUTHENTICATED) ===");
             const userData = await syncUserData(
               user.id,
               user.username,
               user.first_name
             );
 
-            console.log("[init] === SYNC COMPLETE ===");
-            console.log("[init] syncUserData returned:", userData);
+            console.log("[init-6] === SYNC COMPLETE ===");
+            console.log("[init-6a] syncUserData returned:", userData);
 
             if (userData) {
-              console.log("[init] ✅ Sync successful! Updating game state with server values...");
+              console.log("[init-7] ✅ Sync successful! Updating game state with server values...");
               
               // Update game state from database
-              console.log("[init] Setting coins from", coins, "to", userData.balance);
+              console.log("[init-7a] Setting coins from", coins, "to", userData.balance);
               setCoins(userData.balance);
               
-              console.log("[init] Setting energy from", energy, "to", userData.current_energy);
+              console.log("[init-7b] Setting energy from", energy, "to", userData.current_energy);
               setEnergy(userData.current_energy);
               
-              console.log("[init] Setting maxEnergy from", maxEnergy, "to", userData.max_energy);
+              console.log("[init-7c] Setting maxEnergy from", maxEnergy, "to", userData.max_energy);
               setMaxEnergy(userData.max_energy);
               
               // Map database upgrade levels to local state
-              console.log("[init] Updating upgrade levels from database...");
+              console.log("[init-7d] Updating upgrade levels from database...");
               setUpgrades(prev => {
                 const updated = prev.map(u => {
                   if (u.id === "multitap") {
                     const newLevel = userData.multitap_level || 1;
                     const newCost = Math.floor(100 * Math.pow(1.8, newLevel - 1));
-                    console.log(`[init] Multitap: level ${u.level} → ${newLevel}, cost ${u.cost} → ${newCost}`);
+                    console.log(`[init-7d-i] Multitap: level ${u.level} → ${newLevel}, cost ${u.cost} → ${newCost}`);
                     return { ...u, level: newLevel, cost: newCost };
                   }
                   if (u.id === "energy_limit") {
                     const newLevel = userData.energy_limit_level || 1;
                     const newCost = Math.floor(200 * Math.pow(2.0, newLevel - 1));
-                    console.log(`[init] Energy Limit: level ${u.level} → ${newLevel}, cost ${u.cost} → ${newCost}`);
+                    console.log(`[init-7d-ii] Energy Limit: level ${u.level} → ${newLevel}, cost ${u.cost} → ${newCost}`);
                     return { ...u, level: newLevel, cost: newCost };
                   }
                   return u;
                 });
-                console.log("[init] Updated upgrades array:", updated);
+                console.log("[init-7d-iii] Updated upgrades array:", updated);
                 return updated;
               });
 
               // Apply upgrade effects
               const newTapPower = userData.multitap_level || 1;
-              console.log("[init] Setting tapPower from", tapPower, "to", newTapPower);
+              console.log("[init-7e] Setting tapPower from", tapPower, "to", newTapPower);
               setTapPower(newTapPower);
               
               const newMaxEnergy = 1000 + ((userData.energy_limit_level || 1) - 1) * 500;
-              console.log("[init] Recalculating maxEnergy:", newMaxEnergy);
+              console.log("[init-7f] Recalculating maxEnergy:", newMaxEnergy);
               setMaxEnergy(newMaxEnergy);
 
-              console.log("[init] ✅ State update complete. Final state:", {
+              console.log("[init-8] ✅ State update complete. Final state:", {
                 coins: userData.balance,
                 energy: userData.current_energy,
                 maxEnergy: newMaxEnergy,
@@ -189,25 +242,27 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
               });
 
               setIsSynced(true);
-              console.log("[init] ✅ Sync complete, isSynced set to true");
+              console.log("[init-9] ✅ Sync complete, isSynced set to true");
             } else {
-              console.error("[init] ❌ Sync returned null! Using local state only.");
+              console.error("[init-10] ❌ Sync returned null! Using local state only.");
               setIsSynced(true); // Still mark as synced to allow gameplay
             }
           } else {
-            console.warn("[init] No Telegram user found in getTelegramUser()");
+            console.warn("[init-11] No Telegram user found in getTelegramUser()");
             setIsSynced(true);
           }
         } else {
-          console.log("[init] Running outside Telegram, using mock data");
+          console.log("[init-12] Running outside Telegram, using mock data (no auth needed)");
           setIsSynced(true);
         }
 
-        console.log("[init] Setting isLoading to false");
+        console.log("[init-13] Setting isLoading to false");
         setIsLoading(false);
+        console.log("[init-14] ==============================================");
         console.log("[init] === INITIALIZATION COMPLETE ===");
+        console.log("[init] ==============================================");
       } catch (error) {
-        console.error("[init] ❌ FATAL ERROR during initialization:", {
+        console.error("[init-ERROR] ❌ FATAL ERROR during initialization:", {
           error,
           message: error instanceof Error ? error.message : "Unknown error",
           stack: error instanceof Error ? error.stack : undefined,
@@ -237,6 +292,7 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": authTokenRef.current ? `Bearer ${authTokenRef.current}` : "",
           },
           body: JSON.stringify({
             clicks: batch.clicks,
@@ -455,7 +511,8 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
         addCoins,
         tap,
         purchaseUpgrade,
-        useDailyBoost,dailyBoosts,
+        useDailyBoost,
+        dailyBoosts,
         floatingTexts,
         telegramUser,
         isSynced,

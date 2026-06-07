@@ -1,4 +1,6 @@
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "@/lib/config";
 
 export interface UserData {
   id: number;
@@ -21,6 +23,24 @@ export interface UserUpgrade {
 }
 
 /**
+ * Creates an authenticated Supabase client
+ */
+function createAuthClient(token: string | null) {
+  if (!token) {
+    console.warn("[sync] No auth token provided, using anonymous client");
+    return supabase;
+  }
+  
+  return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  });
+}
+
+/**
  * Syncs user data with Supabase database
  * Returns the loaded user data or null if sync fails
  */
@@ -36,10 +56,16 @@ export async function syncUserData(
   });
 
   try {
+    // Get auth token from localStorage
+    const token = localStorage.getItem("sb_auth_token");
+    console.log("[sync] Auth token present:", token ? "Yes" : "No");
+    
+    const client = createAuthClient(token);
+
     // First, try to upsert the user (insert or update)
     console.log("[sync] Attempting to upsert user in Supabase...");
     
-    const { data: userData, error: upsertError } = await supabase
+    const { data: userData, error: upsertError } = await client
       .from("users")
       .upsert(
         {
@@ -98,7 +124,7 @@ export async function syncUserData(
 
     // Update the last_energy_sync time
     console.log("[sync] Updating energy sync timestamp...");
-    const { data: updatedData, error: updateError } = await supabase
+    const { data: updatedData, error: updateError } = await client
       .from("users")
       .update({
         current_energy: regeneratedEnergy,
@@ -146,7 +172,11 @@ export async function saveUserState(
   console.log("[save] Saving user state:", { telegramUserId, updates });
   
   try {
-    const { error } = await supabase
+    // Get auth token from localStorage
+    const token = localStorage.getItem("sb_auth_token");
+    const client = createAuthClient(token);
+    
+    const { error } = await client
       .from("users")
       .update({
         ...updates,
@@ -182,7 +212,11 @@ export async function loadUserData(
   console.log("[load] Loading user data for:", telegramUserId);
   
   try {
-    const { data, error } = await supabase
+    // Get auth token from localStorage
+    const token = localStorage.getItem("sb_auth_token");
+    const client = createAuthClient(token);
+    
+    const { data, error } = await client
       .from("users")
       .select("*")
       .eq("id", telegramUserId)
