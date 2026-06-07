@@ -26,7 +26,7 @@ serve(async (req) => {
     }
 
     // Get bot token from environment
-    const botToken = '8656619965:AAHg3L8Kp2ndASH5DW7ZTVTB9IZPZ7K7qDo';
+    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
     if (!botToken) {
       console.error("[auth-telegram] Missing TELEGRAM_BOT_TOKEN");
       return new Response("Server configuration error", {
