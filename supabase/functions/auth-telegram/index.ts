@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -6,16 +7,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-// Hardcoded bot token for testing
-const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
-
-if (!botToken) {
-  console.error("[auth-telegram] ❌ FAILURE: TELEGRAM_BOT_TOKEN is missing in Deno.env!");
-  return new Response("Bot token not configured", { status: 500 });
-}
-
-console.log("[auth-telegram] Successfully loaded bot token (length:", botToken.length, ")");
 
 /**
  * Validates Telegram Web App initData using the official method
@@ -139,6 +130,19 @@ serve(async (req) => {
   console.log("[auth-telegram] Request method:", req.method);
   console.log("[auth-telegram] Request headers:", Object.fromEntries(req.headers.entries()));
 
+  // Fetch the token inside the function
+  const botToken = (Deno as any).env.get("TELEGRAM_BOT_TOKEN");
+  
+  if (!botToken) {
+    console.error("[auth-telegram] ❌ FAILURE: TELEGRAM_BOT_TOKEN is missing!");
+    return new Response("Server configuration error", { 
+      status: 500, 
+      headers: corsHeaders 
+    });
+  }
+
+  console.log("[auth-telegram] TELEGRAM_BOT_TOKEN present (length:", botToken.length, ")");
+
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     console.log("[auth-telegram] CORS preflight request, returning OK");
@@ -158,18 +162,6 @@ serve(async (req) => {
       console.error("[auth-telegram] ❌ FAILURE: Missing initData in request body");
       return new Response("Missing initData", {
         status: 400,
-        headers: corsHeaders,
-      });
-    }
-
-    // Use hardcoded bot token for testing
-    const botToken = BOT_TOKEN;
-    console.log("[auth-telegram] Using hardcoded bot token (length:", botToken.length, ")");
-    
-    if (!botToken || BOT_TOKEN === "YOUR_BOT_TOKEN_HERE") {
-      console.error("[auth-telegram] ❌ FAILURE: Bot token not configured. Please replace BOT_TOKEN constant.");
-      return new Response("Server configuration error", {
-        status: 500,
         headers: corsHeaders,
       });
     }
@@ -203,9 +195,7 @@ serve(async (req) => {
     // Create Supabase client with admin privileges
     console.log("[auth-telegram] === CREATING SUPABASE ADMIN CLIENT ===");
     const supabaseClient = createClient(
-      // deno-lint-ignore no-explicit-any
       (Deno as any).env.get("SUPABASE_URL") ?? "",
-      // deno-lint-ignore no-explicit-any
       (Deno as any).env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       {}
     );

@@ -16,5 +16,6 @@
     "rules": {
       "exclude": ["no-explicit-any"]
     }
-  }
+  },
+  "unstable": ["kv", "cron", "process"]
 }
