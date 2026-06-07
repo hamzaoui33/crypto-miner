@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // Hardcoded bot token for testing
-const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
 
 if (!botToken) {
   console.error("[auth-telegram] ❌ FAILURE: TELEGRAM_BOT_TOKEN is missing in Deno.env!");
