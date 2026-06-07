@@ -8,8 +8,9 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -69,10 +70,10 @@ serve(async (req) => {
       energySpent,
     });
 
-    // Get current user data
+    // Get current user data (select all columns to include balance)
     const { data: userData, error: fetchError } = await supabaseClient
       .from("users")
-      .select("current_energy, max_energy")
+      .select("*")
       .eq("id", telegramUserId)
       .single();
 

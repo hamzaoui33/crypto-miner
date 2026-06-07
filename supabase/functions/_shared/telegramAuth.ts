@@ -3,7 +3,9 @@
  * Follows Telegram's official validation specification:
  * https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
  */
-import { HmacSHA256, enc } from "https://esm.sh/crypto-js@4.2.0";
+import cryptoJs from "https://esm.sh/crypto-js@4.2.0";
+
+const { HmacSHA256, enc } = cryptoJs;
 
 /**
  * Parses URL-encoded initData string into key-value pairs
