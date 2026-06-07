@@ -277,58 +277,58 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Submit tap batch to backend
-  const submitTapBatch = useCallback(async (batch: TapBatch) => {
-    if (!teleUserId) {
-      console.warn("[batch] No Telegram user ID, skipping batch submit");
-      return;
-    }
-
-    console.log("[batch] Submitting tap batch:", batch);
-
-    try {
-      const response = await fetch(
-        API_ENDPOINTS.SUBMIT_TAPS,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-            ...(authTokenRef.current ? { "X-User-Token": authTokenRef.current } : {}),
-          },
-          body: JSON.stringify({
-            clicks: batch.clicks,
-            energySpent: batch.energySpent,
-          }),
-        }
-      );
-
-      console.log("[batch] Server response status:", response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error("[batch] Batch submit failed", {
-          status: response.status,
-          error: errorData,
-        });
+    const submitTapBatch = useCallback(async (batch: TapBatch) => {
+      if (!teleUserId) {
+        console.warn("[batch] No Telegram user ID, skipping batch submit");
         return;
       }
-
-      const result = await response.json();
-      console.log("[batch] ✅ Batch submitted successfully:", {
-        newBalance: result.newBalance,
-        newEnergy: result.newEnergy,
-      });
-
-      // Update local state to match server state
-      setCoins(result.newBalance);
-      setEnergy(result.newEnergy);
-    } catch (error) {
-      console.error("[batch] Batch submit error", { 
-        error,
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }, [teleUserId]);
+  
+      console.log("[batch] Submitting tap batch:", batch);
+      console.log("[batch] Auth token present:", !!authTokenRef.current);
+  
+      try {
+        const response = await fetch(
+          API_ENDPOINTS.SUBMIT_TAPS,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${authTokenRef.current}`,
+            },
+            body: JSON.stringify({
+              clicks: batch.clicks,
+              energySpent: batch.energySpent,
+            }),
+          }
+        );
+  
+        console.log("[batch] Server response status:", response.status);
+  
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("[batch] Batch submit failed", {
+            status: response.status,
+            error: errorData,
+          });
+          return;
+        }
+  
+        const result = await response.json();
+        console.log("[batch] ✅ Batch submitted successfully:", {
+          newBalance: result.newBalance,
+          newEnergy: result.newEnergy,
+        });
+  
+        // Update local state to match server state
+        setCoins(result.newBalance);
+        setEnergy(result.newEnergy);
+      } catch (error) {
+        console.error("[batch] Batch submit error", {
+          error,
+          message: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }, [teleUserId]);
 
   // Use tap batching hook
   const { recordTap, flush: flushTaps } = useTapBatching({
