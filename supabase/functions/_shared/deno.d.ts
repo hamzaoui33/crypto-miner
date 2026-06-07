@@ -19,5 +19,10 @@ declare module "https://esm.sh/@supabase/supabase-js@2.45.0" {
 }
 
 declare module "https://esm.sh/crypto-js@4.2.0" {
-  export * from "crypto-js";
+  const cryptoJs: {
+    HmacSHA256: (message: string, key: string) => { toString: (encoder: any) => string };
+    enc: { Hex: any };
+    [key: string]: any;
+  };
+  export default cryptoJs;
 }

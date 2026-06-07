@@ -9,16 +9,27 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log("[auth-telegram] === FUNCTION INVOKED ===");
+  console.log("[auth-telegram] Request method:", req.method);
+  console.log("[auth-telegram] Request headers:", Object.fromEntries(req.headers.entries()));
+
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
+    console.log("[auth-telegram] CORS preflight request, returning OK");
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     // Parse request body
+    console.log("[auth-telegram] Attempting to parse request body...");
     const { initData } = await req.json();
+    console.log("[auth-telegram] Parsed body successfully");
+    console.log("[auth-telegram] initData present:", !!initData);
+    console.log("[auth-telegram] initData length:", initData ? initData.length : 0);
+    console.log("[auth-telegram] initData preview:", initData ? initData.substring(0, 100) + "..." : "N/A");
 
     if (!initData) {
+      console.error("[auth-telegram] ❌ FAILURE: Missing initData in request body");
       return new Response("Missing initData", {
         status: 400,
         headers: corsHeaders,
@@ -26,9 +37,13 @@ serve(async (req) => {
     }
 
     // Get bot token from environment
-    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
+    // deno-lint-ignore no-explicit-any
+    const botToken = (Deno as any).env.get("TELEGRAM_BOT_TOKEN");
+    console.log("[auth-telegram] TELEGRAM_BOT_TOKEN present:", !!botToken);
+    console.log("[auth-telegram] TELEGRAM_BOT_TOKEN length:", botToken ? botToken.length : 0);
+    
     if (!botToken) {
-      console.error("[auth-telegram] Missing TELEGRAM_BOT_TOKEN");
+      console.error("[auth-telegram] ❌ FAILURE: Missing TELEGRAM_BOT_TOKEN environment variable");
       return new Response("Server configuration error", {
         status: 500,
         headers: corsHeaders,
@@ -36,41 +51,72 @@ serve(async (req) => {
     }
 
     // Validate Telegram initData
-    const validation = validateInitData(initData, botToken);
+    console.log("[auth-telegram] === STARTING TELEGRAM SIGNATURE VERIFICATION ===");
+    let validation: { valid: boolean; userId?: string; username?: string; firstName?: string; authDate?: number };
+    
+    try {
+      validation = validateInitData(initData, botToken);
+      
+      console.log("[auth-telegram] Validation result:", validation);
+      console.log("[auth-telegram] validation.valid:", validation.valid);
+      console.log("[auth-telegram] validation.userId:", validation.userId);
+      console.log("[auth-telegram] validation.username:", validation.username);
+      console.log("[auth-telegram] validation.firstName:", validation.firstName);
+      console.log("[auth-telegram] validation.authDate:", validation.authDate);
 
-    if (!validation.valid || !validation.userId) {
-      console.warn("[auth-telegram] Invalid initData", {
-        valid: validation.valid,
-        userId: validation.userId,
-      });
-      return new Response("Invalid Telegram authentication", {
+      if (!validation.valid || !validation.userId) {
+        console.error("[auth-telegram] ❌ SIGNATURE VERIFICATION FAILURE");
+        console.error("[auth-telegram] Reason: validation.valid =", validation.valid);
+        console.error("[auth-telegram] Reason: validation.userId =", validation.userId);
+        return new Response("Invalid Telegram authentication", {
+          status: 401,
+          headers: corsHeaders,
+        });
+      }
+
+      console.log("[auth-telegram] ✅ SIGNATURE VERIFICATION SUCCESS");
+      console.log("[auth-telegram] Validated user ID:", validation.userId);
+      console.log("[auth-telegram] Validated username:", validation.username);
+    } catch (verifyError) {
+      console.error("[auth-telegram] ❌ SIGNATURE VERIFICATION THREW ERROR");
+      console.error("[auth-telegram] Error type:", verifyError instanceof Error ? verifyError.constructor.name : "Unknown");
+      console.error("[auth-telegram] Error message:", verifyError instanceof Error ? verifyError.message : String(verifyError));
+      console.error("[auth-telegram] Error stack:", verifyError instanceof Error ? verifyError.stack : "No stack");
+      return new Response("Telegram verification failed", {
         status: 401,
         headers: corsHeaders,
       });
     }
 
-    console.log("[auth-telegram] Validation successful", {
-      userId: validation.userId,
-      username: validation.username,
-    });
-
     // Create Supabase client with admin privileges
+    console.log("[auth-telegram] === CREATING SUPABASE ADMIN CLIENT ===");
+    // deno-lint-ignore no-explicit-any
     const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      // deno-lint-ignore no-explicit-any
+      (Deno as any).env.get("SUPABASE_URL") ?? "",
+      // deno-lint-ignore no-explicit-any
+      (Deno as any).env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       {}
     );
+    console.log("[auth-telegram] Supabase client created");
 
     // Check if user exists
-    const { data: existingUser } = await supabaseClient
+    console.log("[auth-telegram] === CHECKING IF USER EXISTS ===");
+    const { data: existingUser, error: fetchError } = await supabaseClient
       .from("users")
       .select("id")
-      .eq("id", validation.userId)
+      .eq("id", Number(validation.userId))
       .single();
 
+    if (fetchError) {
+      console.log("[auth-telegram] User fetch error (expected for new users):", fetchError);
+    } else {
+      console.log("[auth-telegram] Existing user found:", existingUser);
+    }
+
     if (!existingUser) {
-      // Create new user
-      const { error: insertError } = await supabaseClient.from("users").insert({
+      console.log("[auth-telegram] === CREATING NEW USER ===");
+      const { data: insertedUser, error: insertError } = await supabaseClient.from("users").insert({
         id: Number(validation.userId),
         username: validation.username || null,
         first_name: validation.firstName || "User",
@@ -79,32 +125,28 @@ serve(async (req) => {
         current_energy: 1000,
         multitap_level: 1,
         energy_limit_level: 1,
-      });
+      }).select().single();
 
       if (insertError) {
-        console.error("[auth-telegram] Failed to create user", {
-          error: insertError,
-        });
+        console.error("[auth-telegram] ❌ FAILURE: Failed to create user");
+        console.error("[auth-telegram] Insert error:", insertError);
         return new Response("Failed to create user", {
           status: 500,
           headers: corsHeaders,
         });
       }
 
-      console.log("[auth-telegram] User created", {
-        id: validation.userId,
-      });
+      console.log("[auth-telegram] ✅ User created successfully:", insertedUser);
     }
 
     // Generate a JWT token for Supabase authentication
-    // This token will be used for subsequent API calls
+    console.log("[auth-telegram] === GENERATING JWT TOKEN ===");
     const { data: sessionData, error: sessionError } =
       await supabaseClient.auth.signInAnonymously();
 
     if (sessionError) {
-      console.error("[auth-telegram] Failed to generate session", {
-        error: sessionError,
-      });
+      console.error("[auth-telegram] ❌ FAILURE: Failed to generate session");
+      console.error("[auth-telegram] Session error:", sessionError);
       return new Response("Failed to authenticate", {
         status: 500,
         headers: corsHeaders,
@@ -112,14 +154,19 @@ serve(async (req) => {
     }
 
     const token = sessionData.session?.access_token;
+    console.log("[auth-telegram] Token generated:", !!token);
+    console.log("[auth-telegram] Token length:", token ? token.length : 0);
 
     if (!token) {
-      console.error("[auth-telegram] No token generated");
+      console.error("[auth-telegram] ❌ FAILURE: No token generated from signInAnonymously");
       return new Response("Failed to generate token", {
         status: 500,
         headers: corsHeaders,
       });
     }
+
+    console.log("[auth-telegram] === AUTHENTICATION SUCCESSFUL ===");
+    console.log("[auth-telegram] Returning response with token");
 
     return new Response(
       JSON.stringify({
@@ -134,7 +181,10 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("[auth-telegram] Error processing request", { error });
+    console.error("[auth-telegram] === UNCAUGHT ERROR ===");
+    console.error("[auth-telegram] Error type:", error instanceof Error ? error.constructor.name : "Unknown");
+    console.error("[auth-telegram] Error message:", error instanceof Error ? error.message : String(error));
+    console.error("[auth-telegram] Error stack:", error instanceof Error ? error.stack : "No stack");
     return new Response("Internal server error", {
       status: 500,
       headers: corsHeaders,

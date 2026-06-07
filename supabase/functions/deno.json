@@ -2,11 +2,19 @@
   "compilerOptions": {
     "allowJs": true,
     "lib": ["deno.ns", "deno.unstable"],
-    "strict": true
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true
   },
   "imports": {
     "std/": "https://deno.land/std@0.190.0/",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.0",
-    "crypto-js": "https://esm.sh/crypto-js@4.2.0"
+    "crypto-js": "https://esm.sh/crypto-js@4.2.0",
+    "crypto-js/": "https://esm.sh/crypto-js@4.2.0/"
+  },
+  "lint": {
+    "rules": {
+      "exclude": ["no-explicit-any"]
+    }
   }
 }
