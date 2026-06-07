@@ -8,8 +8,12 @@ import { API_ENDPOINTS, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "@/lib/con
  */
 export async function authenticateWithTelegram(
   initData: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; userId?: string; username?: string }> {
+  console.log("[auth] Starting authentication with Telegram initData");
+  
   try {
+    console.log("[auth] Sending request to edge function:", API_ENDPOINTS.AUTH_TELEGRAM);
+    
     const response = await fetch(
       API_ENDPOINTS.AUTH_TELEGRAM,
       {
@@ -20,6 +24,8 @@ export async function authenticateWithTelegram(
         body: JSON.stringify({ initData }),
       }
     );
+
+    console.log("[auth] Edge function response status:", response.status);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -34,18 +40,28 @@ export async function authenticateWithTelegram(
     }
 
     const data = await response.json();
+    console.log("[auth] Edge function response payload:", data);
 
     // Store the JWT token in localStorage for persistence
     if (data.token) {
       localStorage.setItem("sb_auth_token", data.token);
+      console.log("[auth] JWT token stored in localStorage");
     }
 
-    return { success: true };
+    return { 
+      success: true,
+      userId: data.userId,
+      username: data.username,
+    };
   } catch (error) {
-    console.error("[auth] Authentication error", { error });
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("[auth] Authentication error", { 
+      error,
+      message: errorMessage,
+    });
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMessage,
     };
   }
 }
@@ -54,13 +70,16 @@ export async function authenticateWithTelegram(
  * Gets the stored auth token from localStorage
  */
 export function getStoredAuthToken(): string | null {
-  return localStorage.getItem("sb_auth_token");
+  const token = localStorage.getItem("sb_auth_token");
+  console.log("[auth] Retrieved auth token from localStorage:", token ? "Token exists" : "No token");
+  return token;
 }
 
 /**
  * Clears the stored auth token
  */
 export function clearAuthToken(): void {
+  console.log("[auth] Clearing auth token from localStorage");
   localStorage.removeItem("sb_auth_token");
 }
 
@@ -68,6 +87,7 @@ export function clearAuthToken(): void {
  * Creates a Supabase client with the authenticated user's JWT token
  */
 export function createAuthenticatedClient(token: string) {
+  console.log("[auth] Creating authenticated Supabase client");
   return createClient(
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY,

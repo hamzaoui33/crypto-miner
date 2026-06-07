@@ -91,61 +91,131 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
   const nextFloatId = useRef(0);
 
+  // Track if initialization has completed to prevent re-initialization
+  const hasInitialized = useRef(false);
+
   // Initialize Telegram user and sync with backend
   useEffect(() => {
+    // Prevent multiple initializations
+    if (hasInitialized.current) {
+      console.log("[init] Already initialized, skipping...");
+      return;
+    }
+    hasInitialized.current = true;
+
+    console.log("[init] Starting initialization...");
+
     async function initialize() {
-      if (isInsideTelegram()) {
-        const user = getTelegramUser();
-        if (user) {
-          setTelegramUser(user);
-          setTeleUserId(user.id);
+      try {
+        const isTg = isInsideTelegram();
+        console.log("[init] isInsideTelegram() result:", isTg);
 
-          // Sync user data with Supabase
-          console.log("[init] Syncing user data with Supabase...");
-          const userData = await syncUserData(
-            user.id,
-            user.username,
-            user.first_name
-          );
+        if (isTg) {
+          const user = getTelegramUser();
+          console.log("[init] getTelegramUser() result:", user);
 
-          if (userData) {
-            // Update game state from database
-            setCoins(userData.balance);
-            setEnergy(userData.current_energy);
-            setMaxEnergy(userData.max_energy);
+          if (user) {
+            console.log("[init] Telegram user detected:", {
+              id: user.id,
+              first_name: user.first_name,
+              username: user.username,
+            });
             
-            // Map database upgrade levels to local state
-            setUpgrades(prev => prev.map(u => {
-              if (u.id === "multitap") {
-                const newLevel = userData.multitap_level || 1;
-                const newCost = Math.floor(100 * Math.pow(1.8, newLevel - 1));
-                return { ...u, level: newLevel, cost: newCost };
-              }
-              if (u.id === "energy_limit") {
-                const newLevel = userData.energy_limit_level || 1;
-                const newCost = Math.floor(200 * Math.pow(2.0, newLevel - 1));
-                return { ...u, level: newLevel, cost: newCost };
-              }
-              return u;
-            }));
+            setTelegramUser(user);
+            setTeleUserId(user.id);
 
-            // Apply upgrade effects
-            setTapPower(userData.multitap_level || 1);
-            setMaxEnergy(1000 + ((userData.energy_limit_level || 1) - 1) * 500);
+            // Sync user data with Supabase
+            console.log("[init] === STARTING SUPABASE SYNC ===");
+            const userData = await syncUserData(
+              user.id,
+              user.username,
+              user.first_name
+            );
 
-            setIsSynced(true);
-            console.log("[init] Sync complete", { userData });
+            console.log("[init] === SYNC COMPLETE ===");
+            console.log("[init] syncUserData returned:", userData);
+
+            if (userData) {
+              console.log("[init] ✅ Sync successful! Updating game state with server values...");
+              
+              // Update game state from database
+              console.log("[init] Setting coins from", coins, "to", userData.balance);
+              setCoins(userData.balance);
+              
+              console.log("[init] Setting energy from", energy, "to", userData.current_energy);
+              setEnergy(userData.current_energy);
+              
+              console.log("[init] Setting maxEnergy from", maxEnergy, "to", userData.max_energy);
+              setMaxEnergy(userData.max_energy);
+              
+              // Map database upgrade levels to local state
+              console.log("[init] Updating upgrade levels from database...");
+              setUpgrades(prev => {
+                const updated = prev.map(u => {
+                  if (u.id === "multitap") {
+                    const newLevel = userData.multitap_level || 1;
+                    const newCost = Math.floor(100 * Math.pow(1.8, newLevel - 1));
+                    console.log(`[init] Multitap: level ${u.level} → ${newLevel}, cost ${u.cost} → ${newCost}`);
+                    return { ...u, level: newLevel, cost: newCost };
+                  }
+                  if (u.id === "energy_limit") {
+                    const newLevel = userData.energy_limit_level || 1;
+                    const newCost = Math.floor(200 * Math.pow(2.0, newLevel - 1));
+                    console.log(`[init] Energy Limit: level ${u.level} → ${newLevel}, cost ${u.cost} → ${newCost}`);
+                    return { ...u, level: newLevel, cost: newCost };
+                  }
+                  return u;
+                });
+                console.log("[init] Updated upgrades array:", updated);
+                return updated;
+              });
+
+              // Apply upgrade effects
+              const newTapPower = userData.multitap_level || 1;
+              console.log("[init] Setting tapPower from", tapPower, "to", newTapPower);
+              setTapPower(newTapPower);
+              
+              const newMaxEnergy = 1000 + ((userData.energy_limit_level || 1) - 1) * 500;
+              console.log("[init] Recalculating maxEnergy:", newMaxEnergy);
+              setMaxEnergy(newMaxEnergy);
+
+              console.log("[init] ✅ State update complete. Final state:", {
+                coins: userData.balance,
+                energy: userData.current_energy,
+                maxEnergy: newMaxEnergy,
+                tapPower: newTapPower,
+                multitap_level: userData.multitap_level,
+                energy_limit_level: userData.energy_limit_level,
+              });
+
+              setIsSynced(true);
+              console.log("[init] ✅ Sync complete, isSynced set to true");
+            } else {
+              console.error("[init] ❌ Sync returned null! Using local state only.");
+              setIsSynced(true); // Still mark as synced to allow gameplay
+            }
           } else {
-            console.warn("[init] Sync failed, using local state");
-            setIsSynced(true); // Still mark as synced to allow gameplay
+            console.warn("[init] No Telegram user found in getTelegramUser()");
+            setIsSynced(true);
           }
+        } else {
+          console.log("[init] Running outside Telegram, using mock data");
+          setIsSynced(true);
         }
-      } else {
-        console.log("[init] Running outside Telegram, using mock data");
+
+        console.log("[init] Setting isLoading to false");
+        setIsLoading(false);
+        console.log("[init] === INITIALIZATION COMPLETE ===");
+      } catch (error) {
+        console.error("[init] ❌ FATAL ERROR during initialization:", {
+          error,
+          message: error instanceof Error ? error.message : "Unknown error",
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+        // Still set loading to false to prevent infinite loading
+        setIsLoading(false);
         setIsSynced(true);
       }
-
-      setIsLoading(false);
     }
 
     initialize();
@@ -157,6 +227,8 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
       console.warn("[batch] No Telegram user ID, skipping batch submit");
       return;
     }
+
+    console.log("[batch] Submitting tap batch:", batch);
 
     try {
       const response = await fetch(
@@ -173,6 +245,8 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
         }
       );
 
+      console.log("[batch] Server response status:", response.status);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error("[batch] Batch submit failed", {
@@ -183,7 +257,7 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const result = await response.json();
-      console.log("[batch] Batch submitted successfully", {
+      console.log("[batch] ✅ Batch submitted successfully:", {
         newBalance: result.newBalance,
         newEnergy: result.newEnergy,
       });
@@ -192,7 +266,10 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
       setCoins(result.newBalance);
       setEnergy(result.newEnergy);
     } catch (error) {
-      console.error("[batch] Batch submit error", { error });
+      console.error("[batch] Batch submit error", { 
+        error,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
     }
   }, [teleUserId]);
 
@@ -204,18 +281,21 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   });
 
   // Energy regeneration
-    useEffect(() => {
-      const interval = setInterval(() => {
-        setEnergy((prev) => Math.min(maxEnergy, prev + energyRegenRate));
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setEnergy((prev) => {
+        const newEnergy = Math.min(maxEnergy, prev + energyRegenRate);
         
         // Also save energy periodically to backend
-        if (isSynced && teleUserId && Math.random() < 0.1) { // 10% chance every 2 seconds
-          const newEnergy = Math.min(maxEnergy, energy + energyRegenRate);
+        if (isSynced && teleUserId && Math.random() < 0.1) {
           saveUserState(teleUserId, { current_energy: newEnergy });
         }
-      }, 2000);
-      return () => clearInterval(interval);
-    }, [maxEnergy, energyRegenRate, isSynced, teleUserId, energy]);
+        
+        return newEnergy;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [maxEnergy, energyRegenRate, isSynced, teleUserId]);
 
   // Auto-bot passive income
   const autoBotLevel = upgrades.find((u) => u.id === "auto_bot")?.level ?? 0;
@@ -223,15 +303,19 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
     if (autoBotLevel <= 0) return;
     
     const interval = setInterval(() => {
-      setCoins((prev) => prev + autoBotLevel);
-      
-      // Save passive income to backend periodically
-      if (isSynced && teleUserId && Math.random() < 0.2) { // 20% chance every second
-        saveUserState(teleUserId, { balance: coins + autoBotLevel });
-      }
+      setCoins((prev) => {
+        const newCoins = prev + autoBotLevel;
+        
+        // Save passive income to backend periodically
+        if (isSynced && teleUserId && Math.random() < 0.2) {
+          saveUserState(teleUserId, { balance: newCoins });
+        }
+        
+        return newCoins;
+      });
     }, 1000);
     return () => clearInterval(interval);
-  }, [autoBotLevel, isSynced, teleUserId, coins]);
+  }, [autoBotLevel, isSynced, teleUserId]);
 
   // Clean up floating texts
   useEffect(() => {
@@ -250,17 +334,23 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   }, [flushTaps]);
 
   const addCoins = useCallback((amount: number) => {
-    setCoins((prev) => prev + amount);
-    
-    // Save to backend immediately for task rewards
-    if (isSynced && teleUserId) {
-      saveUserState(teleUserId, { balance: coins + amount });
-    }
-  }, [isSynced, teleUserId, coins]);
+    console.log("[addCoins] Adding", amount, "coins");
+    setCoins((prev) => {
+      const newCoins = prev + amount;
+      // Save to backend immediately for task rewards
+      if (isSynced && teleUserId) {
+        saveUserState(teleUserId, { balance: newCoins });
+      }
+      return newCoins;
+    });
+  }, [isSynced, teleUserId]);
 
   const tap = useCallback(
     (x: number, y: number) => {
-      if (energy <= 0) return;
+      if (energy <= 0) {
+        console.log("[tap] Not enough energy!");
+        return;
+      }
       
       setCoins((prev) => prev + tapPower);
       setTaps((prev) => prev + 1);
@@ -278,8 +368,12 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   const purchaseUpgrade = useCallback(
     (id: string) => {
       const upgrade = upgrades.find((u) => u.id === id);
-      if (!upgrade || coins < upgrade.cost) return;
+      if (!upgrade || coins < upgrade.cost) {
+        console.log("[purchaseUpgrade] Cannot afford upgrade:", { id, coins, cost: upgrade?.cost });
+        return;
+      }
 
+      console.log("[purchaseUpgrade] Purchasing upgrade:", id);
       setCoins((prev) => prev - upgrade.cost);
 
       setUpgrades((prev) =>
@@ -293,25 +387,33 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
 
       // Apply upgrade effects
       if (id === "multitap") {
-        setTapPower((prev) => prev + 1);
-        // Save to backend
-        if (isSynced && teleUserId) {
-          saveUserState(teleUserId, { multitap_level: (upgrades.find(u => u.id === "multitap")?.level || 1) + 1 });
-        }
+        setTapPower((prev) => {
+          const newPower = prev + 1;
+          if (isSynced && teleUserId) {
+            const currentMultitapLevel = upgrades.find(u => u.id === "multitap")?.level || 1;
+            saveUserState(teleUserId, { multitap_level: currentMultitapLevel + 1 });
+          }
+          return newPower;
+        });
       }
       if (id === "energy_limit") {
-        setMaxEnergy((prev) => prev + 500);
-        // Save to backend
-        if (isSynced && teleUserId) {
-          saveUserState(teleUserId, { 
-            max_energy: maxEnergy + 500,
-            energy_limit_level: (upgrades.find(u => u.id === "energy_limit")?.level || 1) + 1 
-          });
-        }
+        setMaxEnergy((prev) => {
+          const newMax = prev + 500;
+          if (isSynced && teleUserId) {
+            const currentLevel = upgrades.find(u => u.id === "energy_limit")?.level || 1;
+            saveUserState(teleUserId, { 
+              max_energy: newMax,
+              energy_limit_level: currentLevel + 1 
+            });
+          }
+          return newMax;
+        });
       }
-      if (id === "recharge") setEnergyRegenRate((prev) => prev * 2);
+      if (id === "recharge") {
+        setEnergyRegenRate((prev) => prev * 2);
+      }
     },
-    [upgrades, coins, isSynced, teleUserId, maxEnergy]
+    [upgrades, coins, isSynced, teleUserId]
   );
 
   const useDailyBoost = useCallback(
@@ -323,11 +425,18 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
         prev.map((b) => (b.id === id ? { ...b, remaining: b.remaining - 1 } : b))
       );
 
-      if (id === "full_energy") setEnergy(maxEnergy);
+      if (id === "full_energy") {
+        console.log("[useDailyBoost] Activating Full Energy");
+        setEnergy(maxEnergy);
+      }
       if (id === "turbo_tap") {
+        console.log("[useDailyBoost] Activating Turbo Tap");
         const originalTapPower = tapPower;
         setTapPower(originalTapPower * 5);
-        setTimeout(() => setTapPower(originalTapPower), 60000);
+        setTimeout(() => {
+          console.log("[useDailyBoost] Turbo Tap expired");
+          setTapPower(originalTapPower);
+        }, 60000);
       }
     },
     [dailyBoosts, maxEnergy, tapPower]
@@ -346,8 +455,7 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
         addCoins,
         tap,
         purchaseUpgrade,
-        useDailyBoost,
-        dailyBoosts,
+        useDailyBoost,dailyBoosts,
         floatingTexts,
         telegramUser,
         isSynced,
