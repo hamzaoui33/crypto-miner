@@ -20,6 +20,7 @@ export async function authenticateWithTelegram(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ initData }),
       }

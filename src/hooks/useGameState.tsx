@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, ty
 import { getTelegramUser, isInsideTelegram } from "@/utils/telegram";
 import { syncUserData, saveUserState, type UserData } from "@/lib/sync";
 import { useTapBatching, type TapBatch } from "@/lib/tapBatching";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, SUPABASE_PUBLISHABLE_KEY } from "@/lib/config";
 import { authenticateWithTelegram, getStoredAuthToken } from "@/lib/auth";
 
 interface TelegramUser {
@@ -292,7 +292,8 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": authTokenRef.current ? `Bearer ${authTokenRef.current}` : "",
+            "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+            ...(authTokenRef.current ? { "X-User-Token": authTokenRef.current } : {}),
           },
           body: JSON.stringify({
             clicks: batch.clicks,
