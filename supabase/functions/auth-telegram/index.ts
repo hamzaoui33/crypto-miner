@@ -8,7 +8,14 @@ const corsHeaders = {
 };
 
 // Hardcoded bot token for testing
-const BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"; // Replace with your actual bot token
+const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+
+if (!botToken) {
+  console.error("[auth-telegram] ❌ FAILURE: TELEGRAM_BOT_TOKEN is missing in Deno.env!");
+  return new Response("Bot token not configured", { status: 500 });
+}
+
+console.log("[auth-telegram] Successfully loaded bot token (length:", botToken.length, ")");
 
 /**
  * Validates Telegram Web App initData using the official method
