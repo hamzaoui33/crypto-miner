@@ -24,15 +24,16 @@ async function validateTelegramInitData(
     const receivedHash = params.get("hash");
 
     if (!receivedHash) {
-      console.error("[telegram-validate] Missing hash parameter");
-      return { valid: false };
-    }
-
-    // Remove hash from params for signature computation
-    params.delete("hash");
-
-    // Sort all parameters alphabetically by key
-    const sortedKeys = Array.from(params.keys()).sort();
+          console.error("[telegram-validate] Missing hash parameter");
+          return { valid: false };
+        }
+    
+        // Remove hash and signature from params for signature computation
+        params.delete("hash");
+        params.delete("signature");
+    
+        // Sort all parameters alphabetically by key
+        const sortedKeys = Array.from(params.keys()).sort();
     
     // Create data-check-string by joining key=value pairs with newline
     const dataCheckString = sortedKeys
