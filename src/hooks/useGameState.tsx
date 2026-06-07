@@ -277,35 +277,30 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Submit tap batch to backend
-    const submitTapBatch = useCallback(async (batch: TapBatch) => {
-      if (!teleUserId) {
-        console.warn("[batch] No Telegram user ID, skipping batch submit");
-        return;
-      }
-  
-      console.log("[batch] Submitting tap batch:", batch);
-  
-      try {
-        // Retrieve the token saved during authentication
-        const userToken = authTokenRef.current || getStoredAuthToken();
-        console.log("[batch] Using auth token:", userToken ? "Token exists (" + userToken.length + " chars)" : "No token");
-  
-        const response = await fetch(
-          API_ENDPOINTS.SUBMIT_TAPS,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-              // Pass the user's JWT token from Telegram auth
-              ...(userToken ? { "X-User-Token": userToken } : {}),
-            },
-            body: JSON.stringify({
-              clicks: batch.clicks,
-              energySpent: batch.energySpent,
-            }),
-          }
-        );
+  const submitTapBatch = useCallback(async (batch: TapBatch) => {
+    if (!teleUserId) {
+      console.warn("[batch] No Telegram user ID, skipping batch submit");
+      return;
+    }
+
+    console.log("[batch] Submitting tap batch:", batch);
+
+    try {
+      const response = await fetch(
+        API_ENDPOINTS.SUBMIT_TAPS,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+            ...(authTokenRef.current ? { "X-User-Token": authTokenRef.current } : {}),
+          },
+          body: JSON.stringify({
+            clicks: batch.clicks,
+            energySpent: batch.energySpent,
+          }),
+        }
+      );
 
       console.log("[batch] Server response status:", response.status);
 
